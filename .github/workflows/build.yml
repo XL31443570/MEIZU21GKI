@@ -1514,6 +1514,43 @@ jobs:
           grep -q '^CONFIG_REKERNEL=y$' "$DEFCONFIG" || echo "CONFIG_REKERNEL=y" >> "$DEFCONFIG"
           grep -q '^CONFIG_REKERNEL_NETWORK=y$' "$DEFCONFIG" || echo "CONFIG_REKERNEL_NETWORK=y" >> "$DEFCONFIG"
 
+      - name: 应用 ZM21 内核优化补丁
+        working-directory: ${{ env.KERNEL_ROOT }}
+        run: |
+          # 来源: GKID-Kernels (同基座 6.1-android14 GKI) 的 kernel-patches/common,
+          # 均为上游社区(Sultan Alsawaf / Cyber Knight / Vaisakh Murali 等)验证过的小补丁。
+          # 全部只改叶子代码(不动 task_struct / vm_area_struct / sched_entity 等被厂商模块
+          # 依赖的结构体), 因此不破坏 KMI。
+          #
+          # 策略: 逐条尝试, 失败不中断构建(记录 SKIP), 因为不同 sublevel 的上下文可能有偏移。
+          # 结束后打印汇总, 失败的条目在日志里一目了然。
+          PATCH_DIR="$GITHUB_WORKSPACE/kernel-patches/zm21"
+          if [ ! -d "$PATCH_DIR" ]; then
+            echo "未找到 $PATCH_DIR, 跳过"
+            exit 0
+          fi
+          OK=0; SKIP=0; SKIPPED=""
+          cd common
+          for p in "$PATCH_DIR"/*.patch; do
+            [ -f "$p" ] || continue
+            name=$(basename "$p")
+            if git apply --check "$p" 2>/dev/null; then
+              git apply "$p"
+              echo "  ✅ $name"
+              OK=$((OK+1))
+            elif git apply --3way "$p" 2>/dev/null; then
+              echo "  ✅ $name (3way)"
+              OK=$((OK+1))
+            else
+              echo "  ⏭  $name (上下文不匹配, 跳过)"
+              SKIP=$((SKIP+1))
+              SKIPPED="$SKIPPED $name"
+            fi
+          done
+          echo "补丁汇总: 应用 $OK 条, 跳过 $SKIP 条"
+          [ -n "$SKIPPED" ] && echo "跳过清单:$SKIPPED"
+          true
+
       - name: 配置内核选项
         working-directory: ${{ env.KERNEL_ROOT }}
         run: |

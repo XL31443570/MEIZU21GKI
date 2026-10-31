@@ -173,6 +173,14 @@ jobs:
         # CONFIG_SECURITY_DMESG_RESTRICT is not set
         CONFIG_PANIC_TIMEOUT=30
         # CONFIG_DAMON is not set
+        # ===== 省电相关(均为上游机制, 不改任何导出结构体, 零 KMI 风险) =====
+        # RCU lazy: 上游 gki_defconfig 里是 DEFAULT_OFF, 即编了但默认关。
+        # 打开后 RCU 回调改为按宽限期批量执行, 空闲/轻载时不再频繁唤醒 CPU。
+        # AOSP 官方文档给出的数字: 轻载或空闲系统可降低 5%~10% 功耗。
+        # 设备 bootargs 已经有 rcu_nocbs=0-7, 与 lazy 是上游推荐的搭配。
+        # CONFIG_RCU_LAZY_DEFAULT_OFF is not set
+        # unbound workqueue 走省电模式: 不再把任务铺到所有核, 而是尽量合并到少量核执行。
+        CONFIG_WQ_POWER_EFFICIENT_DEFAULT=y
         # CONFIG_BLK_CGROUP_IOPRIO is not set
 
   release:

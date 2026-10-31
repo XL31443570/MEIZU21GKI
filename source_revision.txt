@@ -1,0 +1,10 @@
+manifest_branch=common-android14-6.1-2025-09
+source_override=<无, 用 AOSP ACK>
+REMOTE_BRANCH=33b44c9bc6d3f1d9034601972759e8f556ea6b67	refs/heads/android14-6.1-2025-09
+TAG_FALLBACK=<无>
+common_head=33b44c9bc6d3f1d9034601972759e8f556ea6b67
+common_describe=33b44c9bc
+common_commit_date=Wed Oct 28 07:48:21 2026 +0000
+common_subject=FROMGIT: usb: gadget: f_midi: fix UAF race during IN request handling
+--- manifest 里的 common 项目 ---
+--- KMI/LOCALVERSION 常量 ---

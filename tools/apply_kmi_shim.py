@@ -121,6 +121,20 @@ def patch_scsi(root, log):
     if MARK in src:
         log.append("  跳过(已打过): drivers/scsi/scsi_lib.c")
         return True
+    # 上游(>=6.7 已合入; ACK 后续可能回合 backport)若已自带 scsi_execute_cmd_len, 不能再定义一次。
+    # 但 ufs_qcom.ko 需要的是【导出】, 所以必须区分三种情况 —— 只判断"存在"就跳过是错的:
+    # 若上游有定义却没导出, 跳过会让符号解析失败 → UFS 起不来 → 卡 logo,
+    # 而报错完全指不到这里, 极难排查。
+    if re.search(r"\bint\s+scsi_execute_cmd_len\s*\(", src):
+        if re.search(r"\bEXPORT_SYMBOL\w*\(\s*scsi_execute_cmd_len\s*\)", src):
+            log.append("  跳过(上游已定义并导出 scsi_execute_cmd_len): drivers/scsi/scsi_lib.c")
+        else:
+            src += ("\n/* %s: 上游已有 scsi_execute_cmd_len 定义但未导出,"
+                    " ufs_qcom.ko 依赖该导出 */\n"
+                    "EXPORT_SYMBOL(scsi_execute_cmd_len);\n" % MARK)
+            write(path, src)
+            log.append("  已打: drivers/scsi/scsi_lib.c 仅补导出(上游已有定义)")
+        return True
     if not SCSI_SIG_OLD.search(src):
         log.append("  !! 找不到 scsi_execute_cmd 的签名: drivers/scsi/scsi_lib.c")
         return False
@@ -146,6 +160,21 @@ def append_marked(root, rel, block, log, expect=None, tag=""):
     if expect and expect not in src:
         log.append("  !! %s 里找不到锚点 %r, 拒绝半途修改" % (rel, expect))
         return False
+    # 上游可能已经导出了同名符号(实测 6.1.155 的 mm/vmscan.c 已 EXPORT_SYMBOL(reclaim_pages)),
+    # 再追加一次会构成重复导出 -> modpost 报错。逐行过滤掉已存在的导出。
+    kept, dropped = [], []
+    for line in block.splitlines(True):
+        m = re.match(r"\s*EXPORT_(?:SYMBOL|TRACEPOINT_SYMBOL)\w*\(\s*(\w+)\s*\)", line)
+        if m and re.search(r"\bEXPORT_(?:SYMBOL|TRACEPOINT_SYMBOL)\w*\(\s*%s\s*\)"
+                           % re.escape(m.group(1)), src):
+            dropped.append(m.group(1))
+            continue
+        kept.append(line)
+    block = "".join(kept)
+    if dropped:
+        log.append("  上游已导出, 跳过: %s (%s)" % (", ".join(dropped), rel))
+    if not block.strip():
+        return True
     write(path, src + block)
     log.append("  已打: %s%s" % (rel, tag))
     return True
@@ -166,12 +195,25 @@ def patch_hook_header(root, rel, names, log):
     if endif < 0:
         log.append("  !! %s 里 define_trace.h 之前没有 #endif, 拒绝修改" % rel)
         return False
-    decl = "\n/* %s: 原厂私有的 vendor hook, 仅需存在并导出(内核侧不调用) */\n" % MARK
+    # 上游可能已经声明了同名 hook(实测 6.1.155 的 include/trace/hooks/mm.h 已有
+    # android_vh_ra_tuning_max_page, 且签名是真实参数)。重复 DECLARE_HOOK 会重定义报错,
+    # 且我们的 TP_PROTO(void *unused) 与上游签名冲突, 必须逐个跳过。
+    todo, skipped = [], []
     for n in names:
+        if re.search(r"DECLARE_HOOK\(\s*%s\b" % re.escape(n), src):
+            skipped.append(n)
+        else:
+            todo.append(n)
+    if skipped:
+        log.append("  上游已声明, 跳过 %d 个: %s" % (len(skipped), ", ".join(skipped)))
+    if not todo:
+        return True
+    decl = "\n/* %s: 原厂私有的 vendor hook, 仅需存在并导出(内核侧不调用) */\n" % MARK
+    for n in todo:
         decl += "DECLARE_HOOK(%s,\n\tTP_PROTO(void *unused),\n\tTP_ARGS(unused));\n" % n
     src = src[:endif] + decl + src[endif:]
     write(path, src)
-    log.append("  已打: %s (+%d 个 hook)" % (rel, len(names)))
+    log.append("  已打: %s (+%d 个 hook)" % (rel, len(todo)))
     return True
 
 
@@ -182,11 +224,20 @@ def append_exports(root, rel, names, log):
     if MARK + tag in src:
         log.append("  跳过(已打过): %s%s" % (rel, tag))
         return True
+    # 注意: hook 可能上游已声明(见 patch_hook_header 的跳过), 但通常没有 EXPORT ——
+    # 厂商模块需要的是【导出】, 所以这里只按"是否已导出"过滤, 与声明是两件事。
+    todo = [n for n in names
+            if not re.search(r"EXPORT_TRACEPOINT_SYMBOL_GPL\(\s*%s\s*\)" % re.escape(n), src)]
+    dropped = [n for n in names if n not in todo]
+    if dropped:
+        log.append("  上游已导出, 跳过 %d 个: %s" % (len(dropped), ", ".join(dropped)))
+    if not todo:
+        return True
     block = "\n/* %s%s: 导出原厂私有 hook 的 tracepoint */\n" % (MARK, tag)
-    for n in names:
+    for n in todo:
         block += "EXPORT_TRACEPOINT_SYMBOL_GPL(%s);\n" % n
     write(path, src + block)
-    log.append("  已打: %s%s (+%d 个导出)" % (rel, tag, len(names)))
+    log.append("  已打: %s%s (+%d 个导出)" % (rel, tag, len(todo)))
     return True
 
 

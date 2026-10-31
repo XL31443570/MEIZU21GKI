@@ -76,8 +76,8 @@ jobs:
     with:
       android_version: "android14"
       kernel_version: "6.1"
-      sub_level: "25"
-      os_patch_level: "2023-10"
+      sub_level: "145"
+      os_patch_level: "2025-09"
       ksu_variant: ${{ inputs.ksu_variant || 'ReSukiSU' }}
       ksu_mode: ${{ inputs.ksu_mode || '禁用KSU' }}
       lto_mode: ${{ inputs.lto_mode || 'none' }}
@@ -85,8 +85,9 @@ jobs:
       use_zram: ${{ inputs.use_zram || false }}
       use_bbg: ${{ inputs.use_bbg || false }}
       use_kpm: ${{ inputs.use_kpm || 'disabled (关闭)' }}
-      # 与原厂 LOCALVERSION 完全一致(见 meizu21.yml 的说明), 否则厂商模块拒绝加载
-      version: "6.1.25-android14-11-maybe-dirty"
+      # 与 meizu21.yml 保持一致(二分必须和主构建同一个基线, 否则没有可比性)
+      # 只写 localversion, 前半段 6.1.<实际SUBLEVEL> 由构建时从内核树读取
+      version: "-android14-11-maybe-dirty"
       build_time: ""
       supp_op: false
       droidspaces: "off"

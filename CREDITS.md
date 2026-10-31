@@ -13,9 +13,11 @@
 - 仓库：https://android.googlesource.com/kernel/common
 - manifest：https://android.googlesource.com/kernel/manifest
 - 分支：`deprecated/android14-6.1-2023-10`（manifest 分支 `common-android14-6.1-2023-10`）
-- **固定提交：`0d89215310919593150f0ef047f9fd9902e02bc7`**
-  （`UPSTREAM: net: sched: sch_multiq: fix possible OOB write in multiq_tune()`，2024-06-03）
-- 对应内核：`6.1.25` / KMI `android14-11` / 安全补丁 2023-10
+- **目标分支：`common-android14-6.1-2025-09`**
+  （早前基线为 `0d89215310919593150f0ef047f9fd9902e02bc7`，2024-06-03；
+  升级后实际 pin 的 commit 以每次构建产物里的 `source_revision.txt` 为准，
+  其中记录 `common_head` / `common_describe` / 提交日期，避免此处写死后失真）
+- 对应内核：`6.1.145` / KMI `android14-11` / 安全补丁 2025-09
 - 用途：GKI 内核树本体。本项目在其之上打 KernelSU + SUSFS 补丁
 - 许可证：GPL-2.0
 

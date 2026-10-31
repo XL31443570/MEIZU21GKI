@@ -1,6 +1,6 @@
-name: MEIZU21GKI 构建 (ReSukiSU + SUSFS, android14-6.1.25)
+name: MEIZU21GKI 构建 (ReSukiSU + SUSFS, android14-6.1.145)
 
-# 目标机型: 魅族21 (SM8650 / Pineapple), GKI android14-6.1, sub_level 25, os_patch 2023-10
+# 目标机型: 魅族21 (SM8650 / Pineapple), GKI android14-6.1, sub_level 145 (2025-09), os_patch 2025-09
 # 默认: ReSukiSU(对齐可启动参考 huahuahua 血统) + SUSFS + LTO=none
 # 失败 → 日志自动提交到仓库 log/ 目录(见 build.yml)
 # 成功 → 自动创建 release(预览版 prerelease) + 同时把产物推到 dist 分支(本机 CDN 被墙时的取回通道)
@@ -94,8 +94,8 @@ jobs:
     with:
       android_version: "android14"
       kernel_version: "6.1"
-      sub_level: "25"
-      os_patch_level: "2023-10"
+      sub_level: "145"
+      os_patch_level: "2025-09"
       # push 事件没有 inputs → 用 || 落到默认值(ReSukiSU / 关闭 / none)
       ksu_variant: ${{ inputs.ksu_variant || 'ReSukiSU' }}
       ksu_mode: ${{ inputs.ksu_mode || '关闭' }}
@@ -111,13 +111,16 @@ jobs:
       use_zram: ${{ inputs.use_zram || false }}
       use_bbg: ${{ inputs.use_bbg || false }}
       use_kpm: ${{ inputs.use_kpm || 'disabled (关闭)' }}
-      # ★ 必须与设备原厂内核的 LOCALVERSION 完全一致:
-      #   原厂 = 6.1.25-android14-11-maybe-dirty
-      #   vendor_boot/vendor_dlkm 里的厂商模块(display/touch/storage…)vermagic 就是这一串,
-      #   不一致 → 内核拒绝加载这些模块 → 卡第一屏 2~3 秒后被看门狗重启。
-      #   (留空会走 build.yml 的 "KMI 伪装" 分支, 生成 -android14-11-g<sha>-ab<随机>-4k,
-      #    与官方不同 → 必然起不来; 花花的参考镜像是 -Keirui-huahuahua, 所以它也重启)
-      version: "6.1.25-android14-11-maybe-dirty"
+      # ★ 只写 localversion(以 '-' 开头): 前半段 6.1.<实际SUBLEVEL> 由构建时从内核树读取,
+      #   所以换 os_patch_level 时【不需要】改这一行, 也不会因 manifest pin 的 sublevel
+      #   与预期不符而停在「校验内核版本串」。
+      #   为什么必须是 -android14-11-maybe-dirty:
+      #   57 个 system_dlkm 的原生 GKI 模块 vermagic 就是这一串; 另外 415 个魅族自己编的
+      #   模块 vermagic 是纯 "6.1.<n>"(无 localversion), 两者能被同一个内核加载 —— 因为
+      #   kernel/module/version.c 的 same_magic() 在模块带 CRC 时【跳过第一个空格前的全部内容】,
+      #   localversion 与主版本号都不参与比较。真正必须一致的是后半段
+      #   "SMP preempt mod_unload modversions aarch64"。
+      version: "-android14-11-maybe-dirty"
       build_time: ""
       supp_op: false
       droidspaces: "off"
@@ -256,8 +259,8 @@ jobs:
             gh release delete "$TAG" --yes --cleanup-tag || true
           fi
           gh release create "$TAG" --prerelease \
-            --title "MEIZU21GKI $VARIANT+SUSFS android14-6.1.25-2023-10 (run ${{ github.run_number }})" \
-            --notes "预览版本(preview)。GKI android14-6.1.25 / os_patch 2023-10 / LTO=none / KernelSU=$VARIANT + SUSFS。
+            --title "MEIZU21GKI $VARIANT+SUSFS android14-6.1.145-2025-09 (run ${{ github.run_number }})" \
+            --notes "预览版本(preview)。GKI android14-6.1.145 / os_patch 2025-09 / LTO=none / KernelSU=$VARIANT + SUSFS。
           extra_config: CONFIG_TRIM_UNUSED_KSYMS=n, CONFIG_PANIC_ON_OOPS=n, CONFIG_PANIC_TIMEOUT=30 (对齐原厂与可启动参考)。
           ${APK_NOTE}
           run ${{ github.run_number }} @ ${{ github.sha }}"

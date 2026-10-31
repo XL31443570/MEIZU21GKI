@@ -1,7 +1,7 @@
 # MEIZU21GKI
 
 魅族21（SM8650 / Qualcomm Pineapple）的 **GKI 内核**自包含构建仓库：
-**ReSukiSU（+ SUSFS）+ AnyKernel3**，目标 `android14-6.1 / 6.1.25 / os_patch 2023-10`。
+**ReSukiSU（+ SUSFS）+ AnyKernel3**，目标 `android14-6.1 / 6.1.145 / os_patch 2025-09`。
 
 > 本仓库把原先分散在多个 fork 里的东西合并到一处：构建流水线、魅族21 设备树、
 > KernelSU 源码（ReSukiSU）、SUSFS 补丁快照。构建时**只**联网取 Google 内核源码与几个公开工具，
@@ -13,7 +13,7 @@
 
 | 路径 | 内容 |
 | --- | --- |
-| `.github/workflows/build.yml` | 主构建流水线（`workflow_call`，1700+ 行：源码同步/tag 回退/KSU 集成/SUSFS/defconfig/编译/AK3/失败日志/产物） |
+| `.github/workflows/build.yml` | 主构建流水线（`workflow_call`，2500+ 行：源码同步/tag 回退/KSU 集成/SUSFS/defconfig/编译/AK3/失败日志/产物） |
 | `.github/workflows/meizu21.yml` | **主入口**：push `main` 自动构建 + 手动 dispatch；成功 → 预览版 release + `dist` 分支 |
 | `.github/workflows/meizu21-bisect.yml` | 开机循环二分定位（L0 禁用KSU / L1 禁用SUSFS / L2 全开） |
 | `kernelsu/` | **内置 ReSukiSU 源码**（见 `kernelsu/SOURCE.txt`；接线方式同其官方 `kernel/setup.sh`） |

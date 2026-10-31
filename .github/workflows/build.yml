@@ -2155,6 +2155,14 @@ jobs:
           VM=$(strings -a "$IMG" | grep -m1 'SMP preempt mod_unload modversions aarch64' || true)
           echo "$VM"
           WANT="$(echo '${{ inputs.version }}' | tr -d '[:space:]')"
+          # 支持"只给 localversion"的写法(以 '-' 开头): 前半段用内核树里实际的 SUBLEVEL 拼。
+          # 这样换 ACK 分支时不必预先知道 manifest 到底 pin 了 6.1.141 还是 6.1.145,
+          # 也就不会因为写死数字而对不上、白跑一次构建。
+          if [[ "$WANT" == -* ]]; then
+            SUB_FOR_WANT="${ACTUAL_SUBLEVEL:-${{ inputs.sub_level }}}"
+            WANT="${{ inputs.kernel_version }}.${SUB_FOR_WANT}${WANT}"
+            echo "版本串前半段取自实际内核树(SUBLEVEL=${SUB_FOR_WANT}): $WANT"
+          fi
           if [ -n "$WANT" ]; then
             # 注意末尾空格: 这样也能抓到 "重复拼接" 的坏版本串(6.1.25-X-X)
             if printf '%s' "$STR" | grep -qF "$WANT "; then
@@ -2326,13 +2334,22 @@ jobs:
           fi
 
           # 结构自检: 与原厂 boot.img 逐字段核对, 不一致直接让这一步失败(而不是刷进去才发现)
-          python3 - "$OUT" "$SIGNED" <<'PY'
+          python3 - "$OUT" "$SIGNED" "$OS_VERSION" "$OS_PATCH" <<'PY'
           import struct
           import sys
 
           path, signed = sys.argv[1], int(sys.argv[2])
+          os_ver, os_patch = sys.argv[3], sys.argv[4]
           data = open(path, 'rb').read()
           bad = []
+
+          def expect_os_version(v, p):
+              """mkbootimg 的编码: (a<<25)|(b<<18)|(c<<11)|((y-2000)<<4)|m
+              a.b.c = 主.次.修订, y-m = 补丁级别年份-月份。
+              回代 14.0.0 + 2023-10 恰好等于原厂的 0x1c00017a, 说明公式正确。"""
+              a, b, c = (int(x) for x in v.split('.'))
+              y, m = (int(x) for x in p.split('-'))
+              return (a << 25) | (b << 18) | (c << 11) | ((y - 2000) << 4) | m
 
           def chk(label, got, want):
               good = got == want
@@ -2348,7 +2365,7 @@ jobs:
           chk('header_version', u32(40), 4)
           chk('header_size', u32(20), 1584)
           chk('ramdisk_size', u32(12), 0)
-          chk('os_version', hex(u32(16)), '0x1c00017a')
+          chk('os_version', hex(u32(16)), hex(expect_os_version(os_ver, os_patch)))
           chk('cmdline', data[44:44 + 1536].split(b'\x00')[0], b'')
           chk('payload fits', u32(8) < len(data), True)
           ks = u32(8)
